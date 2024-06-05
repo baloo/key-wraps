@@ -19,10 +19,10 @@ mod error;
 pub use error::{Error, Result};
 
 use aes::cipher::{
-    generic_array::GenericArray,
+    array::Array,
     typenum::{Unsigned, U16, U24, U32},
-    Block, BlockBackend, BlockCipher, BlockClosure, BlockDecrypt, BlockEncrypt, BlockSizeUser,
-    KeyInit,
+    Block, BlockBackend, BlockCipher, BlockCipherDecrypt, BlockCipherEncrypt, BlockClosure,
+    BlockSizeUser, KeyInit,
 };
 
 #[cfg(feature = "alloc")]
@@ -77,7 +77,11 @@ pub const KWP_IV_PREFIX: [u8; IV_LEN / 2] = [0xA6, 0x59, 0x59, 0xA6];
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Kek<Aes>
 where
-    Aes: KeyInit + BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt + BlockDecrypt,
+    Aes: KeyInit
+        + BlockCipher
+        + BlockSizeUser<BlockSize = U16>
+        + BlockCipherEncrypt
+        + BlockCipherDecrypt,
 {
     /// Initialized cipher
     cipher: Aes,
@@ -92,20 +96,20 @@ pub type KekAes192 = Kek<aes::Aes192>;
 /// AES-256 KEK
 pub type KekAes256 = Kek<aes::Aes256>;
 
-impl From<GenericArray<u8, U16>> for KekAes128 {
-    fn from(kek: GenericArray<u8, U16>) -> Self {
+impl From<Array<u8, U16>> for KekAes128 {
+    fn from(kek: Array<u8, U16>) -> Self {
         Kek::new(&kek)
     }
 }
 
-impl From<GenericArray<u8, U24>> for KekAes192 {
-    fn from(kek: GenericArray<u8, U24>) -> Self {
+impl From<Array<u8, U24>> for KekAes192 {
+    fn from(kek: Array<u8, U24>) -> Self {
         Kek::new(&kek)
     }
 }
 
-impl From<GenericArray<u8, U32>> for KekAes256 {
-    fn from(kek: GenericArray<u8, U32>) -> Self {
+impl From<Array<u8, U32>> for KekAes256 {
+    fn from(kek: Array<u8, U32>) -> Self {
         Kek::new(&kek)
     }
 }
@@ -130,13 +134,17 @@ impl From<[u8; 32]> for KekAes256 {
 
 impl<Aes> TryFrom<&[u8]> for Kek<Aes>
 where
-    Aes: KeyInit + BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt + BlockDecrypt,
+    Aes: KeyInit
+        + BlockCipher
+        + BlockSizeUser<BlockSize = U16>
+        + BlockCipherEncrypt
+        + BlockCipherDecrypt,
 {
     type Error = Error;
 
     fn try_from(value: &[u8]) -> Result<Self> {
         if value.len() == Aes::KeySize::to_usize() {
-            Ok(Kek::new(GenericArray::from_slice(value)))
+            Ok(Kek::new(Array::from_slice(value)))
         } else {
             Err(Error::InvalidKekSize { size: value.len() })
         }
@@ -145,10 +153,14 @@ where
 
 impl<Aes> Kek<Aes>
 where
-    Aes: KeyInit + BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt + BlockDecrypt,
+    Aes: KeyInit
+        + BlockCipher
+        + BlockSizeUser<BlockSize = U16>
+        + BlockCipherEncrypt
+        + BlockCipherDecrypt,
 {
     /// Constructs a new Kek based on the appropriate raw key material.
-    pub fn new(key: &GenericArray<u8, Aes::KeySize>) -> Self {
+    pub fn new(key: &Array<u8, Aes::KeySize>) -> Self {
         let cipher = Aes::new(key);
         Kek { cipher }
     }
@@ -294,7 +306,7 @@ where
         if n == 1 {
             // 1) Append padding
 
-            // GenericArrays should be zero by default, but zeroize again to be sure
+            // Arrays should be zero by default, but zeroize again to be sure
             for i in data.len()..n * SEMIBLOCK_SIZE {
                 block[IV_LEN + i] = 0;
             }
